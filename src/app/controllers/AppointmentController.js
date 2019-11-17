@@ -1,9 +1,41 @@
 import * as Yup from 'yup';
-import { startOfHour, parseISO, isBefore } from 'date-fns';
-import Appointment from '../models/Appointment';
+import { startOfHour, parseISO, isBefore, format } from 'date-fns';
+import pt from 'date-fns/locale/pt';
+
 import User from '../models/User';
+import File from '../models/File';
+import Notification from '../schemas/Notification';
+import Appointment from '../models/Appointment';
 
 class AppointmentController {
+  async index(req, res) {
+    const { page = 1 } = req.query;
+    const appointments = await Appointment.findAll({
+      where: {
+        user_id: req.userId,
+        canceled_at: null,
+      },
+      attributes: ['id', 'date'],
+      order: ['date'],
+      limit: 20,
+      offset: (page - 1) * 20,
+      include: [
+        {
+          model: User,
+          as: 'provider',
+          attributes: ['id', 'name'],
+          include: [
+            {
+              model: File,
+              as: 'avatar',
+              attributes: ['id', 'url', 'path'],
+            },
+          ],
+        },
+      ],
+    });
+    return res.json(appointments);
+  }
   async store(req, res) {
     const schema = Yup.object().shape({
       date: Yup.date().required(),
@@ -58,6 +90,21 @@ class AppointmentController {
       provider_id,
       date: hourStart,
     });
+
+    /**
+     * Notify appoitntment provider
+     */
+    const user = await User.findByPk(req.userId);
+    const formattedDate = format(
+      hourStart,
+      "'dia' dd 'de' MMMM', ás ' H:mm'h'",
+      { locale: pt }
+    );
+    await Notification.create({
+      content: `Novo agendamento de ${user.name} para ${formattedDate}`,
+      user: provider_id,
+    });
+
     return res.json(appointment);
   }
 }
