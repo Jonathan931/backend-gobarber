@@ -1,3 +1,4 @@
+import User from '../models/User';
 import File from '../models/File';
 
 class FileController {
@@ -7,6 +8,8 @@ class FileController {
       name,
       path,
     });
+    const user = await User.findByPk(req.userId);
+    await user.update({ ...user, avatar_id: file.id });
     return res.json(file);
   }
 }
